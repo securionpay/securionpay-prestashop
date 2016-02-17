@@ -17,8 +17,8 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
 
         if ($cart->id_customer == 0 || $cart->id_address_delivery == 0 || $cart->id_address_invoice == 0 ||
                 !$this->module->active || !$chargeId) {
-            $this->redirectOnError();
-            exit;
+            
+            Tools::redirect('index.php?controller=order&step=1');
         }
 
         /* @var $gateway \SecurionPay\SecurionPayGateway */
@@ -26,19 +26,17 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
         $charge = $gateway->retrieveCharge($chargeId);
 
         if (!$charge) {
-            $this->dieWithInvalidPayment();
-            exit;
+            throw new \UnexpectedValueException($this->module->l('Charge is not set', 'payment'));
         }
 
         $metadata = $charge->getMetadata();
         if (!$metadata) {
-            $metadata = array();
+            $metadata = [];
         }
 
         // ensure that charge is not assigned to another order
         if (isset($metadata[self::METADATA_ORDER_ID])) {
-            $this->dieWithInvalidPayment();
-            exit;
+            throw new \UnexpectedValueException($this->module->l('This payment is already assiged to some order', 'payment'));
         }
 
         // Check that this payment option is still available 
@@ -53,20 +51,20 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
         }
         
         if (!$authorized) {
-            die($this->module->l('This payment method is not available.', 'payment'));
+            throw new \RuntimeException($this->module->l('This payment method is not available.', 'payment'));
         }
 
         $customer = new Customer($cart->id_customer);
         if (!Validate::isLoadedObject($customer)) {
             Tools::redirect('index.php?controller=order&step=1');
-            exit;
         }
 
         $currency = $this->context->currency;
         $total = $this->module->fromMinorUnits($charge->getAmount(), $charge->getCurrency());
-        $extraVars = array(
+        $extraVars = [
             'transaction_id' => $charge->getId()
-        );
+        ];
+        
         $paymentMethod = $this->module->l('Card payment', 'payment');
         if (!$paymentMethod) {
             $paymentMethod = $this->module->displayName;
@@ -102,24 +100,11 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
         }
 
         // redirect to order-confirmation page
-        Tools::redirect(
-                'index.php?controller=order-confirmation&id_cart=' . $cart->id . '&id_order=' . $this->module->currentOrder .
+        Tools::redirect('index.php?controller=order-confirmation' .
+                '&id_cart=' . $cart->id . 
+                '&id_order=' . $this->module->currentOrder .
                 '&key=' . $customer->secure_key
-            );
-    }
-
-    private function dieWithInvalidPayment()
-    {
-        die($this->module->l('Invalid payment.', 'payment'));
-    }
-
-    /**
-     * @return Redirect
-     */
-    private function redirectOnError()
-    {
-        Tools::redirect('index.php?controller=order&step=1');
-        exit;
+        );
     }
 
 }

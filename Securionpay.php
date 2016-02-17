@@ -1,7 +1,7 @@
 <?php
 
 if (!defined('_PS_VERSION_')) {
-    exit();
+    exit;
 }
 
 class Securionpay extends PaymentModule
@@ -22,13 +22,13 @@ class Securionpay extends PaymentModule
     {
         $this->name = 'securionpay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.0.0';
+        $this->version = '1.0.1';
         $this->author = 'SecurionPay';
         $this->need_instance = 0;
-        $this->ps_versions_compliancy = array(
+        $this->ps_versions_compliancy = [
             'min' => '1.6',
             'max' => _PS_VERSION_
-        );
+        ];
         $this->bootstrap = true;
 
         parent::__construct();
@@ -39,7 +39,7 @@ class Securionpay extends PaymentModule
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall?');
 
         if (!Configuration::get('MYMODULE_NAME')) {
-            $this->warning = $this->l('No name provided');
+            $this->warning = $this->l('No module name provided');
         }
     }
 
@@ -86,7 +86,7 @@ class Securionpay extends PaymentModule
     }
 
     /**
-     * @param array $params !UNUSED
+     * @param array $params
      * @return Response
      */
     public function hookPayment($params)
@@ -113,14 +113,15 @@ class Securionpay extends PaymentModule
 
         $signedCheckoutRequest = $gateway->signCheckoutRequest($checkoutRequest);
 
-        $this->context->smarty->assign(array(
+        $this->context->smarty->assign([
             'publickKey' => $this->getPublicKey(),
             'email' => $this->getCurrentUserEmail(),
             'checkoutFirstLine' => Configuration::get(self::CHECKOUT_FIRST_LINE),
             'checkoutSecondLine' => Configuration::get(self::CHECKOUT_SECOND_LINE),
             'checkoutPaymentButton' => Configuration::get(self::CHECKOUT_PAYMENT_BUTTON),
             'checkoutRequest' => $signedCheckoutRequest
-        ));
+        ]);
+        
         $this->context->controller->addCSS(_MODULE_DIR_ . $this->name . '/views/css/securionpay.css');
 
         return $this->display(__FILE__, 'payment.tpl');
@@ -154,16 +155,16 @@ class Securionpay extends PaymentModule
         $default_lang = (int) Configuration::get('PS_LANG_DEFAULT');
 
         // Init Fields form array
-        $fields_form[0]['form'] = array(
-            'legend' => array(
+        $fields_form[0]['form'] = [
+            'legend' => [
                 'title' => $this->l('Settings')
-            ),
+            ],
             'input' => $this->getConfigurationFields(),
-            'submit' => array(
+            'submit' => [
                 'title' => $this->l('Save'),
                 'class' => 'button'
-            )
-        );
+            ]
+        ];
 
         $helper = new HelperForm();
 
@@ -182,17 +183,17 @@ class Securionpay extends PaymentModule
         $helper->show_toolbar = true; // false -> remove toolbar
         $helper->toolbar_scroll = true; // yes - > Toolbar is always visible on the top of the screen.
         $helper->submit_action = 'submit' . $this->name;
-        $helper->toolbar_btn = array(
-            'save' => array(
+        $helper->toolbar_btn = [
+            'save' => [
                 'desc' => $this->l('Save'),
                 'href' => AdminController::$currentIndex . '&configure=' . $this->name . '&save' . $this->name .
                 '&token=' . Tools::getAdminTokenLite('AdminModules')
-            ),
-            'back' => array(
+            ],
+            'back' => [
                 'href' => AdminController::$currentIndex . '&token=' . Tools::getAdminTokenLite('AdminModules'),
                 'desc' => $this->l('Back to list')
-            )
-        );
+            ]
+        ];
 
         // Load current value
         foreach ($this->getConfigurationFields() as $field) {
@@ -230,9 +231,14 @@ class Securionpay extends PaymentModule
         require_once __DIR__ . '/lib/SecurionPay/Util/SecurionPayAutoloader.php';
         \SecurionPay\Util\SecurionPayAutoloader::register();
 
-        require_once __DIR__ . '/connection.php';
-
-        return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version));
+        require_once __DIR__ . '/PrestashopCurlConnection.php';
+       
+        $withSSL = 1;
+        if (Configuration::get(self::MODE) == self::MODE_TEST) {
+            $withSSL = 0;
+        }
+        
+        return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version, $withSSL));
     }
 
     /**
@@ -242,9 +248,9 @@ class Securionpay extends PaymentModule
     {
         if ($this->context->customer && $this->context->customer->email) {
             return $this->context->customer->email;
-        } else {
-            return null;
-        }
+        } 
+        
+        return null;
     }
 
     /**
@@ -261,67 +267,67 @@ class Securionpay extends PaymentModule
      */
     private function getConfigurationFields()
     {
-        return array(
-            array(
+        return [
+            [
                 'type' => 'select',
                 'label' => $this->l('Mode'),
                 'desc' => $this->l(
                         'Use the test mode to verify everything works before going live.'
                 ),
                 'name' => self::MODE,
-                'options' => array(
-                    'query' => array(
-                        array(
+                'options' => [
+                    'query' => [
+                        [
                             'id' => self::MODE_TEST,
                             'name' => $this->l('Test mode')
-                        ),
-                        array(
+                        ],
+                        [
                             'id' => self::MODE_LIVE,
                             'name' => $this->l('Live mode')
-                        )
-                    ),
+                        ]
+                    ],
                     'id' => 'id',
                     'name' => 'name'
-                ),
+                ],
                 'required' => true
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('API Test Secret Key'),
                 'name' => self::TEST_PRIVATE_KEY,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('API Test Public Key'),
                 'name' => self::TEST_PUBLIC_KEY,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('API Live Secret Key'),
                 'name' => self::LIVE_PRIVATE_KEY,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('API Live Public Key'),
                 'name' => self::LIVE_PUBLIC_KEY,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('Checkout first line text'),
                 'name' => self::CHECKOUT_FIRST_LINE,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('Checkout second line text'),
                 'name' => self::CHECKOUT_SECOND_LINE,
                 'size' => 32
-            ),
-            array(
+            ],
+            [
                 'type' => 'text',
                 'label' => $this->l('Checkout payment button'),
                 'desc' => $this->l(
@@ -329,8 +335,8 @@ class Securionpay extends PaymentModule
                 ),
                 'name' => self::CHECKOUT_PAYMENT_BUTTON,
                 'size' => 32
-            )
-        );
+            ]
+        ];
     }
 
     /**
@@ -363,14 +369,15 @@ class Securionpay extends PaymentModule
      */
     private function getMinorUnitsFactor($currency)
     {
-        $minorUnitsLookup = array(
+        $minorUnitsLookup = [
             'BHD' => 3, 'BYR' => 0, 'BIF' => 0, 'CLF' => 0, 'CLP' => 0, 'KMF' => 0, 'DJF' => 0, 'XAF' => 0, 'GNF' => 0,
             'ISK' => 0, 'IQD' => 3, 'JPY' => 0, 'JOD' => 3, 'KRW' => 0, 'KWD' => 3, 'LYD' => 3, 'OMR' => 3, 'PYG' => 0,
             'RWF' => 0, 'XOF' => 0, 'TND' => 3, 'UYI' => 0, 'VUV' => 0, 'VND' => 0, 'XPF' => 0
-        );
+        ];
+        
         $minorUnits = isset($minorUnitsLookup[$currency]) ? $minorUnitsLookup[$currency] : 2;
 
-        return (int) bcpow("$minorUnits", "10", 0);
+        return bcpow("10", "$minorUnits");
     }
 
 }

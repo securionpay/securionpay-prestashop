@@ -10,10 +10,15 @@ class PrestashopCurlConnection extends \SecurionPay\Connection\CurlConnection
 
     /**
      * @param string $securionPayPluginVersion
+     * @param integer $withSSL
      */
-    public function __construct($securionPayPluginVersion)
+    public function __construct($securionPayPluginVersion, $withSSL = 1)
     {
-        parent::__construct();
+        parent::__construct(
+            [
+                CURLOPT_SSL_VERIFYPEER => $withSSL
+            ]
+        );
 
         $this->userAgentExtra = 'PrestaShop/' . _PS_VERSION_ . ' (SecurionPay-plugin/' . $securionPayPluginVersion . ')';
     }

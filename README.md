@@ -8,4 +8,4 @@ For further information, please refer to our official API documentation at https
 
 ## License
 
-Adyen plugin is released under the [MIT License](LICENSE).
+Securionpay prestashop plugin is released under the [MIT License](LICENSE).
