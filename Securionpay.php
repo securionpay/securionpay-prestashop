@@ -16,7 +16,7 @@ class Securionpay extends PaymentModule
     const LIVE_PUBLIC_KEY = 'SECURIONPAY_LIVE_PUBLIC_KEY';
     const CHECKOUT_FIRST_LINE = 'SECURIONPAY_CHECKOUT_FIRST_LINE';
     const CHECKOUT_SECOND_LINE = 'SECURIONPAY_CHECKOUT_SECOND_LINE';
-    const CHECKOUT_PAYMENT_BUTTON = 'SECURIONPAY_CHECKOUT_PAYMENT_BUTTON';
+    const CHECKOUT_PAYMENT_BUTTON = 'SECURIONPAY_CHECKOUT_PAYMENT_BTN';
 
     public function __construct()
     {
@@ -25,10 +25,10 @@ class Securionpay extends PaymentModule
         $this->version = '1.0.1';
         $this->author = 'SecurionPay';
         $this->need_instance = 0;
-        $this->ps_versions_compliancy = [
-            'min' => '1.6',
+        $this->ps_versions_compliancy = array(
+            'min' => '1.5',
             'max' => _PS_VERSION_
-        ];
+        );
         $this->bootstrap = true;
 
         parent::__construct();
@@ -38,9 +38,7 @@ class Securionpay extends PaymentModule
 
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall?');
 
-        if (!Configuration::get('MYMODULE_NAME')) {
-            $this->warning = $this->l('No module name provided');
-        }
+        $this->gateway = $this->createGateway();
     }
 
     /**
@@ -52,6 +50,17 @@ class Securionpay extends PaymentModule
             Shop::setContext(Shop::CONTEXT_ALL);
         }
 
+        // Install invisible tab
+        $tab = new Tab();
+        $tab->name[$this->context->language->id] = $this->l('Securionpay');
+        $tab->class_name = 'AdminSecurionpay';
+        $tab->id_parent = -1; // No parent tab
+        $tab->module = $this->name;
+        $tab->add();
+
+        //Init
+        Configuration::updateValue('SECURIONPAY_CONF', '');
+
         if (!parent::install()) {
             return false;
         }
@@ -60,7 +69,9 @@ class Securionpay extends PaymentModule
             return false;
         }
 
-        if (!$this->registerHook('payment')) {
+        if (!$this->registerHook('payment') ||
+            !$this->registerHook('displayAdminOrder')) {
+
             return false;
         }
 
@@ -101,30 +112,58 @@ class Securionpay extends PaymentModule
         $currency = $currencyObject->iso_code;
 
         $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
-        $amount = $this->toMinorUnits($total, $currency);
+        $amount = Utilities::toMinorUnits($total, $currency);
 
-        $gateway = $this->createGateway();
+        $signedCheckoutRequest = $this->createSecurionPayCharge($amount, $currency);
 
-        $chargeRequest = new \SecurionPay\Request\CheckoutRequestCharge();
-        $chargeRequest->amount($amount)->currency($currency);
-
-        $checkoutRequest = new \SecurionPay\Request\CheckoutRequest();
-        $checkoutRequest->charge($chargeRequest);
-
-        $signedCheckoutRequest = $gateway->signCheckoutRequest($checkoutRequest);
-
-        $this->context->smarty->assign([
+        $this->context->smarty->assign(array(
             'publickKey' => $this->getPublicKey(),
             'email' => $this->getCurrentUserEmail(),
             'checkoutFirstLine' => Configuration::get(self::CHECKOUT_FIRST_LINE),
             'checkoutSecondLine' => Configuration::get(self::CHECKOUT_SECOND_LINE),
             'checkoutPaymentButton' => Configuration::get(self::CHECKOUT_PAYMENT_BUTTON),
-            'checkoutRequest' => $signedCheckoutRequest
-        ]);
-        
-        $this->context->controller->addCSS(_MODULE_DIR_ . $this->name . '/views/css/securionpay.css');
+            'checkoutRequest' => $signedCheckoutRequest,
+            'version' => (float) _PS_VERSION_
+        ));
 
+        if ((float) _PS_VERSION_ >= '1.6') {
+            $this->context->controller->addCSS(_MODULE_DIR_ . $this->name . '/views/css/securionpay.css');
+        }
+        
         return $this->display(__FILE__, 'payment.tpl');
+    }
+
+    /**
+     * @param array $hook
+     * @return string
+     */
+    public function hookdisplayAdminOrder($hook)
+    {
+        $order = new Order(Tools::getValue('id_order'));
+
+        $securionPayPayment = null;
+
+        foreach ($order->getOrderPaymentCollection() as $payment) {
+            if ($payment->payment_method == 'Card payment' &&
+                $order->module == 'securionpay' && $order->getCurrentState() != 7) {
+
+                $securionPayPayment = $payment;
+                break;
+            }
+        }
+
+        if (!$securionPayPayment) {
+            return '';
+        }
+
+        $this->context->smarty->assign(array(
+            'button_href' =>  'index.php?controller=AdminSecurionpay' .
+                '&id_order=' . Tools::getValue('id_order') .
+                '&token=' . Tools::getAdminTokenLite('AdminSecurionpay'),
+            'version' => (float) _PS_VERSION_
+        ));
+
+        return $this->display(__FILE__, 'displayAdminOrder.tpl');
     }
 
     /**
@@ -151,20 +190,29 @@ class Securionpay extends PaymentModule
      */
     public function displayForm()
     {
-        // Get default language
-        $default_lang = (int) Configuration::get('PS_LANG_DEFAULT');
-
         // Init Fields form array
-        $fields_form[0]['form'] = [
-            'legend' => [
+        $fieldsForm[0]['form'] = array(
+            'legend' => array(
                 'title' => $this->l('Settings')
-            ],
+            ),
             'input' => $this->getConfigurationFields(),
-            'submit' => [
+            'submit' => array(
                 'title' => $this->l('Save'),
                 'class' => 'button'
-            ]
-        ];
+            )
+        );
+
+        $helper = $this->getConfiguredHelperForm();
+
+        return $helper->generateForm($fieldsForm);
+    }
+
+    /**
+     * @return HelperForm
+     */
+    protected function getConfiguredHelperForm()
+    {
+        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
 
         $helper = new HelperForm();
 
@@ -175,159 +223,125 @@ class Securionpay extends PaymentModule
         $helper->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
 
         // Language
-        $helper->default_form_language = $default_lang;
-        $helper->allow_employee_form_lang = $default_lang;
+        $helper->default_form_language = $defaultLang;
+        $helper->allow_employee_form_lang = $defaultLang;
 
         // Title and toolbar
         $helper->title = $this->displayName;
         $helper->show_toolbar = true; // false -> remove toolbar
         $helper->toolbar_scroll = true; // yes - > Toolbar is always visible on the top of the screen.
         $helper->submit_action = 'submit' . $this->name;
-        $helper->toolbar_btn = [
-            'save' => [
+        $helper->toolbar_btn = array(
+            'save' => array(
                 'desc' => $this->l('Save'),
                 'href' => AdminController::$currentIndex . '&configure=' . $this->name . '&save' . $this->name .
                 '&token=' . Tools::getAdminTokenLite('AdminModules')
-            ],
-            'back' => [
+            ),
+            'back' => array(
                 'href' => AdminController::$currentIndex . '&token=' . Tools::getAdminTokenLite('AdminModules'),
                 'desc' => $this->l('Back to list')
-            ]
-        ];
+            )
+        );
 
         // Load current value
         foreach ($this->getConfigurationFields() as $field) {
             $helper->fields_value[$field['name']] = Configuration::get($field['name']);
         }
 
-        return $helper->generateForm($fields_form);
-    }
-
-    /**
-     * @param mixed $amount
-     * @param string $currency
-     * @return integer
-     */
-    public function toMinorUnits($amount, $currency)
-    {
-        return $this->roundToInt($amount * $this->getMinorUnitsFactor($currency)); // todo, better functions
-    }
-
-    /**
-     * @param integer $amountInMinorUnits
-     * @param string $currency
-     * @return float
-     */
-    public function fromMinorUnits($amountInMinorUnits, $currency)
-    {
-        return (float) ($amountInMinorUnits / $this->getMinorUnitsFactor($currency));
+        return $helper;
     }
 
     /**
      * @return \SecurionPay\SecurionPayGateway
      */
-    public function createGateway()
+    protected function createGateway()
     {
         require_once __DIR__ . '/lib/SecurionPay/Util/SecurionPayAutoloader.php';
         \SecurionPay\Util\SecurionPayAutoloader::register();
-
         require_once __DIR__ . '/PrestashopCurlConnection.php';
-       
-        $withSSL = 1;
-        if (Configuration::get(self::MODE) == self::MODE_TEST) {
-            $withSSL = 0;
-        }
-        
-        return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version, $withSSL));
+        require_once __DIR__ . '/Utilities.php';
+
+        return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version));
     }
 
     /**
      * @return string|null
      */
-    private function getCurrentUserEmail()
+    protected function getCurrentUserEmail()
     {
         if ($this->context->customer && $this->context->customer->email) {
             return $this->context->customer->email;
-        } 
-        
-        return null;
-    }
+        }
 
-    /**
-     * @param mixed $value
-     * @return integer
-     */
-    private function roundToInt($value)
-    {
-        return (int) round($value, 0, PHP_ROUND_HALF_UP);
+        return null;
     }
 
     /**
      * @return array
      */
-    private function getConfigurationFields()
+    protected function getConfigurationFields()
     {
-        return [
-            [
+        return array(
+            array(
                 'type' => 'select',
                 'label' => $this->l('Mode'),
                 'desc' => $this->l(
                         'Use the test mode to verify everything works before going live.'
                 ),
                 'name' => self::MODE,
-                'options' => [
-                    'query' => [
-                        [
+                'options' => array(
+                    'query' => array(
+                        array(
                             'id' => self::MODE_TEST,
                             'name' => $this->l('Test mode')
-                        ],
-                        [
+                        ),
+                        array(
                             'id' => self::MODE_LIVE,
                             'name' => $this->l('Live mode')
-                        ]
-                    ],
+                        )
+                    ),
                     'id' => 'id',
                     'name' => 'name'
-                ],
+                ),
                 'required' => true
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('API Test Secret Key'),
                 'name' => self::TEST_PRIVATE_KEY,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('API Test Public Key'),
                 'name' => self::TEST_PUBLIC_KEY,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('API Live Secret Key'),
                 'name' => self::LIVE_PRIVATE_KEY,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('API Live Public Key'),
                 'name' => self::LIVE_PUBLIC_KEY,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('Checkout first line text'),
                 'name' => self::CHECKOUT_FIRST_LINE,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('Checkout second line text'),
                 'name' => self::CHECKOUT_SECOND_LINE,
                 'size' => 32
-            ],
-            [
+            ),
+            array(
                 'type' => 'text',
                 'label' => $this->l('Checkout payment button'),
                 'desc' => $this->l(
@@ -335,14 +349,30 @@ class Securionpay extends PaymentModule
                 ),
                 'name' => self::CHECKOUT_PAYMENT_BUTTON,
                 'size' => 32
-            ]
-        ];
+            )
+        );
+    }
+
+    /**
+     * @param integer $amount
+     * @param string $currency
+     * @return string
+     */
+    protected function createSecurionPayCharge($amount, $currency)
+    {
+        $chargeRequest = new \SecurionPay\Request\CheckoutRequestCharge();
+        $chargeRequest->amount($amount)->currency($currency);
+
+        $checkoutRequest = new \SecurionPay\Request\CheckoutRequest();
+        $checkoutRequest->charge($chargeRequest);
+
+        return $this->gateway->signCheckoutRequest($checkoutRequest);
     }
 
     /**
      * @return string
      */
-    private function getPrivateKey()
+    protected function getPrivateKey()
     {
         return $this->isLiveMode() ? Configuration::get(self::LIVE_PRIVATE_KEY) : Configuration::get(self::TEST_PRIVATE_KEY);
     }
@@ -350,7 +380,7 @@ class Securionpay extends PaymentModule
     /**
      * @return string
      */
-    private function getPublicKey()
+    protected function getPublicKey()
     {
         return $this->isLiveMode() ? Configuration::get(self::LIVE_PUBLIC_KEY) : Configuration::get(self::TEST_PUBLIC_KEY);
     }
@@ -358,26 +388,9 @@ class Securionpay extends PaymentModule
     /**
      * @return string
      */
-    private function isLiveMode()
+    protected function isLiveMode()
     {
         return Configuration::get(self::MODE) == self::MODE_LIVE;
-    }
-
-    /**
-     * @param string $currency
-     * @return float
-     */
-    private function getMinorUnitsFactor($currency)
-    {
-        $minorUnitsLookup = [
-            'BHD' => 3, 'BYR' => 0, 'BIF' => 0, 'CLF' => 0, 'CLP' => 0, 'KMF' => 0, 'DJF' => 0, 'XAF' => 0, 'GNF' => 0,
-            'ISK' => 0, 'IQD' => 3, 'JPY' => 0, 'JOD' => 3, 'KRW' => 0, 'KWD' => 3, 'LYD' => 3, 'OMR' => 3, 'PYG' => 0,
-            'RWF' => 0, 'XOF' => 0, 'TND' => 3, 'UYI' => 0, 'VUV' => 0, 'VND' => 0, 'XPF' => 0
-        ];
-        
-        $minorUnits = isset($minorUnitsLookup[$currency]) ? $minorUnitsLookup[$currency] : 2;
-
-        return bcpow("10", "$minorUnits");
     }
 
 }

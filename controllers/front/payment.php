@@ -2,7 +2,6 @@
 
 class SecurionPayPaymentModuleFrontController extends ModuleFrontController
 {
-
     const METADATA_ORDER_ID = 'prestashop-order-id';
     const METADATA_ORDER_REFERENCE = 'prestashop-order-reference';
 
@@ -17,13 +16,12 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
 
         if ($cart->id_customer == 0 || $cart->id_address_delivery == 0 || $cart->id_address_invoice == 0 ||
                 !$this->module->active || !$chargeId) {
-            
+
             Tools::redirect('index.php?controller=order&step=1');
         }
 
-        /* @var $gateway \SecurionPay\SecurionPayGateway */
-        $gateway = $this->module->createGateway();
-        $charge = $gateway->retrieveCharge($chargeId);
+        /* @var $this->module->gateway \SecurionPay\SecurionPayGateway */
+        $charge = $this->module->gateway->retrieveCharge($chargeId);
 
         if (!$charge) {
             throw new \UnexpectedValueException($this->module->l('Charge is not set', 'payment'));
@@ -31,7 +29,7 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
 
         $metadata = $charge->getMetadata();
         if (!$metadata) {
-            $metadata = [];
+            $metadata = array();
         }
 
         // ensure that charge is not assigned to another order
@@ -39,51 +37,42 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
             throw new \UnexpectedValueException($this->module->l('This payment is already assiged to some order', 'payment'));
         }
 
-        // Check that this payment option is still available 
-        // in case the customer changed his address just before 
+        // Check that this payment option is still available
+        // in case the customer changed his address just before
         // the end of the checkout process
-        $authorized = false;
-        foreach (Module::getPaymentModules() as $module) {
-            if ($module['name'] == 'securionpay') {
-                $authorized = true;
-                break;
-            }
-        }
-        
-        if (!$authorized) {
-            throw new \RuntimeException($this->module->l('This payment method is not available.', 'payment'));
-        }
+        $this->validatePaymentOption();
 
         $customer = new Customer($cart->id_customer);
         if (!Validate::isLoadedObject($customer)) {
             Tools::redirect('index.php?controller=order&step=1');
         }
 
-        $currency = $this->context->currency;
-        $total = $this->module->fromMinorUnits($charge->getAmount(), $charge->getCurrency());
-        $extraVars = [
-            'transaction_id' => $charge->getId()
-        ];
+        $this->validateOrder($charge, $customer->secure_key, $cart->id);
         
-        $paymentMethod = $this->module->l('Card payment', 'payment');
-        if (!$paymentMethod) {
-            $paymentMethod = $this->module->displayName;
-        }
-
-        // confirm order and mark it as paid
-        $this->module->validateOrder(
-                $cart->id, Configuration::get('PS_OS_PAYMENT'), $total, $paymentMethod, null, $extraVars, (int) $currency->id, false, $customer->secure_key
-        );
-
         // update change metadata
         $metadata[self::METADATA_ORDER_ID] = $this->module->currentOrder;
         $metadata[self::METADATA_ORDER_REFERENCE] = $this->module->currentOrderReference;
 
         $chargeUpdate = new \SecurionPay\Request\ChargeUpdateRequest();
         $chargeUpdate->chargeId($chargeId)->metadata($metadata);
-        $gateway->updateCharge($chargeUpdate);
+        $this->module->gateway->updateCharge($chargeUpdate);
 
-        // update payment details
+        $this->updatePaymentDetails($charge);
+
+        // redirect to order-confirmation page
+        Tools::redirect('index.php?controller=order-confirmation' .
+                '&id_cart=' . $cart->id .
+                '&id_order=' . $this->module->currentOrder .
+                '&key=' . $customer->secure_key
+        );
+    }
+
+    /**
+     * @param SecurionPay Charge $charge
+     * @throws \RuntimeException
+     */
+    protected function updatePaymentDetails($charge)
+    {
         $order = new Order((int) $this->module->currentOrder);
         if (Validate::isLoadedObject($order)) {
             $payments = $order->getOrderPaymentCollection();
@@ -97,14 +86,44 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
                     $payment->save();
                 }
             }
+        } else {
+            throw new \RuntimeException($this->module->l('It is not valid order object!', 'payment'));
         }
+    }
+    
+    /**
+     * @param \SecurionPay\Response\Charge $charge
+     * @param string $customerSecureKey
+     * @param integer $cartId
+     */
+    protected function validateOrder($charge, $customerSecureKey, $cartId)
+    {
+        $currency = $this->context->currency;
+        $total = Utilities::fromMinorUnits($charge->getAmount(), $charge->getCurrency());
+        $extraVars = array(
+            'transaction_id' => $charge->getId()
+        );
 
-        // redirect to order-confirmation page
-        Tools::redirect('index.php?controller=order-confirmation' .
-                '&id_cart=' . $cart->id . 
-                '&id_order=' . $this->module->currentOrder .
-                '&key=' . $customer->secure_key
+        $paymentMethod = $this->module->l('Card payment', 'payment');
+
+        // confirm order and mark it as paid
+        $this->module->validateOrder(
+            $cartId, Configuration::get('PS_OS_PAYMENT'), $total, $paymentMethod, null, $extraVars, (int) $currency->id, false, $customerSecureKey
         );
     }
 
+    /**
+     * @return boolean
+     * @throws \RuntimeException
+     */
+    protected function validatePaymentOption()
+    {
+        foreach (Module::getPaymentModules() as $module) {
+            if ($module['name'] == 'securionpay') {
+                return true;
+            }
+        }
+
+        throw new \RuntimeException($this->module->l('This payment method is not still available.', 'payment'));
+    }
 }

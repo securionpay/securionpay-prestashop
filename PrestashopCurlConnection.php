@@ -4,20 +4,19 @@ class PrestashopCurlConnection extends \SecurionPay\Connection\CurlConnection
 {
 
     /**
-     * @var string 
+     * @var string
      */
     private $userAgentExtra;
 
     /**
      * @param string $securionPayPluginVersion
-     * @param integer $withSSL
      */
-    public function __construct($securionPayPluginVersion, $withSSL = 1)
+    public function __construct($securionPayPluginVersion)
     {
         parent::__construct(
-            [
-                CURLOPT_SSL_VERIFYPEER => $withSSL
-            ]
+            array(
+                CURLOPT_SSL_VERIFYPEER => 0
+            )
         );
 
         $this->userAgentExtra = 'PrestaShop/' . _PS_VERSION_ . ' (SecurionPay-plugin/' . $securionPayPluginVersion . ')';
@@ -64,7 +63,7 @@ class PrestashopCurlConnection extends \SecurionPay\Connection\CurlConnection
      * @param array $headers
      * @return string
      */
-    private function updateUserAgent($headers)
+    protected function updateUserAgent($headers)
     {
         $headers['User-Agent'] .= ' ' . $this->userAgentExtra;
 

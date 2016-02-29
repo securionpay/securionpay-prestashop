@@ -2,6 +2,9 @@
     <div class="col-xs-12">
         <p class="payment_module">
             <a id="securionpay-button" class="securionpay" href="#" title="{l s='Pay by card' mod='securionpay'}"> 
+                {if $version < 1.6 }
+                    <img src="/modules/securionpay/views/img/cards.png" alt="{l s='Pay by card' mod='securionpay'}" width="105" height="30">
+                {/if}
                 {l s='Pay by card' mod='securionpay'}
             </a>
         </p>
