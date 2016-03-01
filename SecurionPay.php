@@ -4,7 +4,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-class Securionpay extends PaymentModule
+class SecurionPay extends PaymentModule
 {
 
     const MODE = 'SECURIONPAY_MODE';
@@ -52,8 +52,8 @@ class Securionpay extends PaymentModule
 
         // Install invisible tab
         $tab = new Tab();
-        $tab->name[$this->context->language->id] = $this->l('Securionpay');
-        $tab->class_name = 'AdminSecurionpay';
+        $tab->name[$this->context->language->id] = $this->l('SecurionPay');
+        $tab->class_name = 'AdminSecurionPay';
         $tab->id_parent = -1; // No parent tab
         $tab->module = $this->name;
         $tab->add();
@@ -112,12 +112,12 @@ class Securionpay extends PaymentModule
         $currency = $currencyObject->iso_code;
 
         $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
-        $amount = Utilities::toMinorUnits($total, $currency);
+        $amount = CurrencyUtils::toMinorUnits($total, $currency);
 
         $signedCheckoutRequest = $this->createSecurionPayCharge($amount, $currency);
 
         $this->context->smarty->assign(array(
-            'publickKey' => $this->getPublicKey(),
+            'publicKey' => $this->getPublicKey(),
             'email' => $this->getCurrentUserEmail(),
             'checkoutFirstLine' => Configuration::get(self::CHECKOUT_FIRST_LINE),
             'checkoutSecondLine' => Configuration::get(self::CHECKOUT_SECOND_LINE),
@@ -157,9 +157,9 @@ class Securionpay extends PaymentModule
         }
 
         $this->context->smarty->assign(array(
-            'button_href' =>  'index.php?controller=AdminSecurionpay' .
+            'button_href' =>  'index.php?controller=AdminSecurionPay' .
                 '&id_order=' . Tools::getValue('id_order') .
-                '&token=' . Tools::getAdminTokenLite('AdminSecurionpay'),
+                '&token=' . Tools::getAdminTokenLite('AdminSecurionPay'),
             'version' => (float) _PS_VERSION_
         ));
 
@@ -259,7 +259,7 @@ class Securionpay extends PaymentModule
         require_once __DIR__ . '/lib/SecurionPay/Util/SecurionPayAutoloader.php';
         \SecurionPay\Util\SecurionPayAutoloader::register();
         require_once __DIR__ . '/PrestashopCurlConnection.php';
-        require_once __DIR__ . '/Utilities.php';
+        require_once __DIR__ . '/CurrencyUtils.php';
 
         return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version));
     }

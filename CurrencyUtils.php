@@ -1,6 +1,6 @@
 <?php
 
-class Utilities
+class CurrencyUtils
 {
     /**
      * @param mixed $amount

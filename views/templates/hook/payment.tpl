@@ -17,7 +17,7 @@
 
 <script src="https://securionpay.com/checkout.js"></script>
 <script type="text/javascript">
-    SecurionpayCheckout.key = '{$publickKey}';
+    SecurionpayCheckout.key = '{$publicKey}';
 
     SecurionpayCheckout.success = function (result) {ldelim}
         jQuery('#securionpay-charge').val(result.charge.id);

@@ -1,6 +1,6 @@
 <?php
 
-class AdminSecurionpayController extends ModuleAdminController
+class AdminSecurionPayController extends ModuleAdminController
 {
 
     public function __construct()
@@ -25,7 +25,12 @@ class AdminSecurionpayController extends ModuleAdminController
     {
         $paymentsParams = array();
 
-        $output = '<h2>' . ucfirst($this->module->name) . ' refund for order id: ' . Tools::getValue('id_order') . '</h2>';
+        $output = '<h2>'
+                . ucfirst($this->module->name)
+                . ' refund for order id: '
+                . Tools::getValue('id_order')
+                . '</h2>';
+
         $order = new Order(Tools::getValue('id_order'));
         $payments = $order->getOrderPaymentCollection();
 
@@ -35,7 +40,9 @@ class AdminSecurionpayController extends ModuleAdminController
             if ($payment->payment_method == 'Card payment') {
                 $paymentsParams[] = array(
                     'id' => $payment->transaction_id,
-                    'name' => $this->l($payment->transaction_id . ' ' . $payment->amount . ' ' . $currency->sign),
+                    'name' => $this->l($payment->transaction_id
+                            . ' ' . $payment->amount
+                            . ' ' . $currency->sign),
                 );
             }
         }
@@ -104,7 +111,7 @@ class AdminSecurionpayController extends ModuleAdminController
                             . '&vieworder&token='
                             . Tools::getAdminTokenLite('AdminOrders'));
                 } else {
-                    $this->errors[] = Tools::displayError($this->l('An error has occurred: Can\'t save currenct state form order'));
+                    $this->errors[] = Tools::displayError($this->l('An error has occurred: Can\'t save current state form order'));
                 }
 
             } else {
@@ -123,7 +130,7 @@ class AdminSecurionpayController extends ModuleAdminController
         $currency = $currencyObject->iso_code;
 
         $total = (float) $orderPayment['amount'];
-        $amount = Utilities::toMinorUnits($total, $currency);
+        $amount = CurrencyUtils::toMinorUnits($total, $currency);
 
         try {
             $refundRequest = new \SecurionPay\Request\RefundRequest();

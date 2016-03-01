@@ -27,15 +27,7 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
             throw new \UnexpectedValueException($this->module->l('Charge is not set', 'payment'));
         }
 
-        $metadata = $charge->getMetadata();
-        if (!$metadata) {
-            $metadata = array();
-        }
-
-        // ensure that charge is not assigned to another order
-        if (isset($metadata[self::METADATA_ORDER_ID])) {
-            throw new \UnexpectedValueException($this->module->l('This payment is already assiged to some order', 'payment'));
-        }
+        $metadata = $this->resolveMetadata($charge);
 
         // Check that this payment option is still available
         // in case the customer changed his address just before
@@ -48,8 +40,8 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
         }
 
         $this->validateOrder($charge, $customer->secure_key, $cart->id);
-        
-        // update change metadata
+
+        // update metadata
         $metadata[self::METADATA_ORDER_ID] = $this->module->currentOrder;
         $metadata[self::METADATA_ORDER_REFERENCE] = $this->module->currentOrderReference;
 
@@ -90,7 +82,26 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
             throw new \RuntimeException($this->module->l('It is not valid order object!', 'payment'));
         }
     }
-    
+
+    /**
+     * @param \SecurionPay\Response\Charge $charge
+     * @return array
+     */
+    protected function resolveMetadata($charge)
+    {
+        $metadata = $charge->getMetadata();
+        if (!$metadata) {
+            $metadata = array();
+        }
+
+        // ensure that charge is not assigned to another order
+        if (isset($metadata[self::METADATA_ORDER_ID])) {
+            throw new \UnexpectedValueException($this->module->l('This payment is already assigned to some order', 'payment'));
+        }
+
+        return $metadata;
+    }
+
     /**
      * @param \SecurionPay\Response\Charge $charge
      * @param string $customerSecureKey
@@ -99,7 +110,7 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
     protected function validateOrder($charge, $customerSecureKey, $cartId)
     {
         $currency = $this->context->currency;
-        $total = Utilities::fromMinorUnits($charge->getAmount(), $charge->getCurrency());
+        $total = CurrencyUtils::fromMinorUnits($charge->getAmount(), $charge->getCurrency());
         $extraVars = array(
             'transaction_id' => $charge->getId()
         );
@@ -126,4 +137,5 @@ class SecurionPayPaymentModuleFrontController extends ModuleFrontController
 
         throw new \RuntimeException($this->module->l('This payment method is not still available.', 'payment'));
     }
+
 }
