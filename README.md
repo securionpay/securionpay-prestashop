@@ -1,6 +1,6 @@
 # securionpay-prestashop
 
-If you don't already have SecurionPay account you can create it [here](https://securionpay.com/register).
+If you don't already have SecurionPay account you can create it [here](https://securionpay.com/signup).
 
 ## Resources
 
