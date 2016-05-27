@@ -4,7 +4,7 @@ If you don't already have SecurionPay account you can create it [here](https://s
 
 ## Resources
 
-For further information, please refer to our official API documentation at https://securionpay.com/docs/api.
+For further information, please refer to our official documentation at https://securionpay.com/docs.
 
 ## License
 
