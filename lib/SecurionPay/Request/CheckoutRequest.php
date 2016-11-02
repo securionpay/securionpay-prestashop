@@ -72,4 +72,24 @@ class CheckoutRequest extends AbstractRequest
     {
         return $this->set('rememberMe', $rememberMe);
     }
+
+    public function getThreeDSecureRequired()
+    {
+        return $this->get('threeDSecureRequired');
+    }
+
+    public function threeDSecureRequired($threeDSecureRequired)
+    {
+        return $this->set('threeDSecureRequired', $threeDSecureRequired);
+    }
+
+    public function getTermsAndConditionsUrl()
+    {
+        return $this->get('termsAndConditionsUrl');
+    }
+    
+    public function termsAndConditionsUrl($termsAndConditionsUrl)
+    {
+        return $this->set('termsAndConditionsUrl', $termsAndConditionsUrl);
+    }
 }

@@ -1,4 +1,4 @@
-# securionpay-prestashop
+# SecurionPay for Prestashop
 
 If you don't already have SecurionPay account you can create it [here](https://securionpay.com/signup).
 
@@ -8,4 +8,4 @@ For further information, please refer to our official documentation at https://s
 
 ## License
 
-SecurionPay prestashop plugin is released under the [MIT License](LICENSE).
+SecurionPay for Prestashop is released under the [MIT License](LICENSE).

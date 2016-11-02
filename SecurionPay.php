@@ -6,6 +6,7 @@ if (!defined('_PS_VERSION_')) {
 
 class SecurionPay extends PaymentModule
 {
+	const VERSION = '1.0.2';
 
     const MODE = 'SECURIONPAY_MODE';
     const MODE_TEST = 'test';
@@ -22,7 +23,7 @@ class SecurionPay extends PaymentModule
     {
         $this->name = 'securionpay';
         $this->tab = 'payments_gateways';
-        $this->version = '1.0.0';
+        $this->version = self::VERSION;
         $this->author = 'SecurionPay';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array(
@@ -258,10 +259,14 @@ class SecurionPay extends PaymentModule
     {
         require_once __DIR__ . '/lib/SecurionPay/Util/SecurionPayAutoloader.php';
         \SecurionPay\Util\SecurionPayAutoloader::register();
-        require_once __DIR__ . '/PrestashopCurlConnection.php';
         require_once __DIR__ . '/CurrencyUtils.php';
 
-        return new \SecurionPay\SecurionPayGateway($this->getPrivateKey(), new PrestashopCurlConnection($this->version));
+		$userAgent = 'SecurionPay-PrestaShop/' . self::VERSION . ' (PrestaShop/' . _PS_VERSION_ . ')';
+
+		$gateway = new \SecurionPay\SecurionPayGateway($this->getPrivateKey());
+		$gateway->setUserAgent($userAgent);
+		
+        return $gateway;
     }
 
     /**
